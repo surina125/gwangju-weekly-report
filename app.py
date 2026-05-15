@@ -61,9 +61,20 @@ CUSTOM_CSS = """
             radial-gradient(circle at 100% 0%, rgba(15, 95, 140, 0.10), transparent 25%),
             linear-gradient(180deg, #f7fafc 0%, var(--bg-main) 100%);
     }
+    header[data-testid="stHeader"] {
+        height: 0;
+        background: transparent;
+    }
+    div[data-testid="stToolbar"],
+    div[data-testid="stDecoration"],
+    div[data-testid="stStatusWidget"],
+    #MainMenu,
+    footer {
+        display: none;
+    }
     .block-container {
         max-width: 1220px;
-        padding-top: 0.85rem;
+        padding-top: 1.65rem;
         padding-bottom: 1.2rem;
     }
     section[data-testid="stSidebar"] {
