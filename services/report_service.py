@@ -522,6 +522,6 @@ def get_not_submitted_employees(
     if result.empty:
         return result
 
-    result["보고기간 시작일"] = result["보고기간 시작일"].fillna(pd.Timestamp(week_start))
-    result["보고기간 종료일"] = result["보고기간 종료일"].fillna(pd.Timestamp(week_end))
+    result["보고기간 시작일"] = pd.to_datetime(result["보고기간 시작일"], errors="coerce").fillna(pd.Timestamp(week_start))
+    result["보고기간 종료일"] = pd.to_datetime(result["보고기간 종료일"], errors="coerce").fillna(pd.Timestamp(week_end))
     return result

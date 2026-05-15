@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 from datetime import date
 
+import pandas as pd
+
 from services.employee_service import get_cells_by_department, get_employees
 from services.report_service import (
     get_not_submitted_employees,
@@ -34,6 +36,8 @@ class AllFilterTestCase(unittest.TestCase):
         self.assertGreaterEqual(len(result), 1)
         self.assertIn("부서", result.columns)
         self.assertIn("셀", result.columns)
+        self.assertTrue(pd.api.types.is_datetime64_any_dtype(result["보고기간 시작일"]))
+        self.assertTrue(pd.api.types.is_datetime64_any_dtype(result["보고기간 종료일"]))
 
     def test_chart_analysis_queries(self) -> None:
         summary = get_report_summary_metrics(date(2026, 5, 13), date(2026, 5, 19), None, None)
