@@ -366,6 +366,15 @@ def is_admin(user: dict[str, object]) -> bool:
     return str(user.get("role", "")) == "admin"
 
 
+def set_query_state(key: str, payload: dict[str, object]) -> None:
+    st.session_state[key] = payload
+
+
+def get_query_state(key: str) -> dict[str, object] | None:
+    value = st.session_state.get(key)
+    return value if isinstance(value, dict) else None
+
+
 def build_period_options() -> list[tuple[date, date]]:
     current_period = get_week_range(date.today())
     options = [current_period]
@@ -625,6 +634,8 @@ def render_report_query_page() -> None:
     render_period_info(selected_period)
     render_section_close()
 
+    state_key = "report_query_result"
+
     if st.button("보고서 조회", type="primary"):
         result = get_reports_by_cell(
             week_start=selected_period[0],
@@ -632,42 +643,60 @@ def render_report_query_page() -> None:
             department_id=department_id,
             cell_id=cell_id,
         )
-
-        if result.empty:
-            st.warning("조회된 주간업무보고가 없습니다.")
-            return
-
-        metric_cols = st.columns(4)
-        metric_cols[0].metric("조회 행 수", f"{len(result)}건")
-        metric_cols[1].metric("부서", department_name or "전체")
-        metric_cols[2].metric("셀", cell_name or "전체")
-        metric_cols[3].metric("다운로드 형식", "Excel + Word")
-        st.dataframe(result, use_container_width=True)
-
-        excel_bytes = dataframe_to_excel_bytes(result, sheet_name="weekly_reports")
-        word_bytes = build_report_docx(
-            dataframe=result,
-            week_start=selected_period[0],
-            week_end=selected_period[1],
-            department_name=department_name,
-            cell_name=cell_name,
+        set_query_state(
+            state_key,
+            {
+                "result": result,
+                "selected_period": selected_period,
+                "department_name": department_name,
+                "cell_name": cell_name,
+            },
         )
 
-        dl_cols = st.columns(2)
-        with dl_cols[0]:
-            st.download_button(
-                label="Excel 다운로드",
-                data=excel_bytes,
-                file_name=build_download_filename("주간업무보고", "xlsx", department_name, cell_name, selected_period),
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-        with dl_cols[1]:
-            st.download_button(
-                label="Word 다운로드",
-                data=word_bytes,
-                file_name=build_download_filename("주간업무보고", "docx", department_name, cell_name, selected_period),
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            )
+    query_state = get_query_state(state_key)
+    if not query_state:
+        return
+
+    result = query_state["result"]
+    selected_period = query_state["selected_period"]
+    department_name = query_state["department_name"]
+    cell_name = query_state["cell_name"]
+
+    if result.empty:
+        st.warning("조회된 주간업무보고가 없습니다.")
+        return
+
+    metric_cols = st.columns(4)
+    metric_cols[0].metric("조회 행 수", f"{len(result)}건")
+    metric_cols[1].metric("부서", department_name or "전체")
+    metric_cols[2].metric("셀", cell_name or "전체")
+    metric_cols[3].metric("다운로드 형식", "Excel + Word")
+    st.dataframe(result, use_container_width=True)
+
+    excel_bytes = dataframe_to_excel_bytes(result, sheet_name="weekly_reports")
+    word_bytes = build_report_docx(
+        dataframe=result,
+        week_start=selected_period[0],
+        week_end=selected_period[1],
+        department_name=department_name,
+        cell_name=cell_name,
+    )
+
+    dl_cols = st.columns(2)
+    with dl_cols[0]:
+        st.download_button(
+            label="Excel 다운로드",
+            data=excel_bytes,
+            file_name=build_download_filename("주간업무보고", "xlsx", department_name, cell_name, selected_period),
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    with dl_cols[1]:
+        st.download_button(
+            label="Word 다운로드",
+            data=word_bytes,
+            file_name=build_download_filename("주간업무보고", "docx", department_name, cell_name, selected_period),
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
 
 
 def render_cell_report_query_page(user: dict[str, object]) -> None:
@@ -698,6 +727,8 @@ def render_cell_report_query_page(user: dict[str, object]) -> None:
     render_period_info(selected_period)
     render_section_close()
 
+    state_key = "cell_report_query_result"
+
     if st.button("셀 보고서 조회", type="primary"):
         result = get_reports_by_cell(
             week_start=selected_period[0],
@@ -705,42 +736,60 @@ def render_cell_report_query_page(user: dict[str, object]) -> None:
             department_id=int(department_id),
             cell_id=int(cell_id),
         )
-
-        if result.empty:
-            st.warning("조회된 셀 보고서가 없습니다.")
-            return
-
-        metric_cols = st.columns(4)
-        metric_cols[0].metric("조회 행 수", f"{len(result)}건")
-        metric_cols[1].metric("부서", str(department_name or "-"))
-        metric_cols[2].metric("셀", str(cell_name or "-"))
-        metric_cols[3].metric("다운로드 형식", "Excel + Word")
-        st.dataframe(result, use_container_width=True)
-
-        excel_bytes = dataframe_to_excel_bytes(result, sheet_name="cell_reports")
-        word_bytes = build_report_docx(
-            dataframe=result,
-            week_start=selected_period[0],
-            week_end=selected_period[1],
-            department_name=str(department_name or ""),
-            cell_name=str(cell_name or ""),
+        set_query_state(
+            state_key,
+            {
+                "result": result,
+                "selected_period": selected_period,
+                "department_name": str(department_name or ""),
+                "cell_name": str(cell_name or ""),
+            },
         )
 
-        dl_cols = st.columns(2)
-        with dl_cols[0]:
-            st.download_button(
-                label="Excel 다운로드",
-                data=excel_bytes,
-                file_name=build_download_filename("주간업무보고", "xlsx", str(department_name or ""), str(cell_name or ""), selected_period),
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-        with dl_cols[1]:
-            st.download_button(
-                label="Word 다운로드",
-                data=word_bytes,
-                file_name=build_download_filename("주간업무보고", "docx", str(department_name or ""), str(cell_name or ""), selected_period),
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            )
+    query_state = get_query_state(state_key)
+    if not query_state:
+        return
+
+    result = query_state["result"]
+    selected_period = query_state["selected_period"]
+    department_name = query_state["department_name"]
+    cell_name = query_state["cell_name"]
+
+    if result.empty:
+        st.warning("조회된 셀 보고서가 없습니다.")
+        return
+
+    metric_cols = st.columns(4)
+    metric_cols[0].metric("조회 행 수", f"{len(result)}건")
+    metric_cols[1].metric("부서", str(department_name or "-"))
+    metric_cols[2].metric("셀", str(cell_name or "-"))
+    metric_cols[3].metric("다운로드 형식", "Excel + Word")
+    st.dataframe(result, use_container_width=True)
+
+    excel_bytes = dataframe_to_excel_bytes(result, sheet_name="cell_reports")
+    word_bytes = build_report_docx(
+        dataframe=result,
+        week_start=selected_period[0],
+        week_end=selected_period[1],
+        department_name=str(department_name or ""),
+        cell_name=str(cell_name or ""),
+    )
+
+    dl_cols = st.columns(2)
+    with dl_cols[0]:
+        st.download_button(
+            label="Excel 다운로드",
+            data=excel_bytes,
+            file_name=build_download_filename("주간업무보고", "xlsx", str(department_name or ""), str(cell_name or ""), selected_period),
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    with dl_cols[1]:
+        st.download_button(
+            label="Word 다운로드",
+            data=word_bytes,
+            file_name=build_download_filename("주간업무보고", "docx", str(department_name or ""), str(cell_name or ""), selected_period),
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
 
 
 def render_my_report_page(user: dict[str, object]) -> None:
@@ -879,6 +928,8 @@ def render_not_submitted_page() -> None:
     render_period_info(selected_period)
     render_section_close()
 
+    state_key = "not_submitted_query_result"
+
     if st.button("미작성자 조회", type="primary"):
         result = get_not_submitted_employees(
             week_start=selected_period[0],
@@ -886,24 +937,42 @@ def render_not_submitted_page() -> None:
             department_id=department_id,
             cell_id=cell_id,
         )
-
-        if result.empty:
-            st.success("모든 직원이 보고서를 작성했습니다.")
-            return
-
-        st.warning("미작성자가 있습니다.")
-        metric_cols = st.columns(3)
-        metric_cols[0].metric("미작성자 수", f"{len(result)}명")
-        metric_cols[1].metric("부서", department_name or "전체")
-        metric_cols[2].metric("셀", cell_name or "전체")
-        st.dataframe(result, use_container_width=True)
-        excel_bytes = dataframe_to_excel_bytes(result, sheet_name="not_submitted")
-        st.download_button(
-            label="미작성자 Excel 다운로드",
-            data=excel_bytes,
-            file_name=build_download_filename("미작성자목록", "xlsx", department_name, cell_name, selected_period),
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        set_query_state(
+            state_key,
+            {
+                "result": result,
+                "selected_period": selected_period,
+                "department_name": department_name,
+                "cell_name": cell_name,
+            },
         )
+
+    query_state = get_query_state(state_key)
+    if not query_state:
+        return
+
+    result = query_state["result"]
+    selected_period = query_state["selected_period"]
+    department_name = query_state["department_name"]
+    cell_name = query_state["cell_name"]
+
+    if result.empty:
+        st.success("모든 직원이 보고서를 작성했습니다.")
+        return
+
+    st.warning("미작성자가 있습니다.")
+    metric_cols = st.columns(3)
+    metric_cols[0].metric("미작성자 수", f"{len(result)}명")
+    metric_cols[1].metric("부서", department_name or "전체")
+    metric_cols[2].metric("셀", cell_name or "전체")
+    st.dataframe(result, use_container_width=True)
+    excel_bytes = dataframe_to_excel_bytes(result, sheet_name="not_submitted")
+    st.download_button(
+        label="미작성자 Excel 다운로드",
+        data=excel_bytes,
+        file_name=build_download_filename("미작성자목록", "xlsx", department_name, cell_name, selected_period),
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 def render_employee_page() -> None:
