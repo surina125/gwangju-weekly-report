@@ -50,24 +50,28 @@ class AuthServiceTestCase(unittest.TestCase):
 
     def test_register_and_authenticate_employee(self) -> None:
         with get_engine().begin() as connection:
-            connection.exec_driver_sql("DELETE FROM app_users WHERE username = 'b17c234'")
+            connection.exec_driver_sql("DELETE FROM app_users WHERE username = 'z99z999'")
+            connection.exec_driver_sql("DELETE FROM employees WHERE emp_no = 'Z99Z999'")
 
         success, message = register_user(
-            emp_no="B17C234",
-            employee_name="이서연",
+            emp_no="Z99Z999",
+            employee_name="테스트직원",
             department_id=1,
             cell_id=1,
-            email="seoyeon.lee@example.com",
+            email="test.employee@example.com",
             password="pw123456",
         )
         self.assertTrue(success, message)
-        self.assertIn("b17c234", message)
+        self.assertIn("z99z999", message)
 
-        user = authenticate_user("b17c234", "pw123456")
+        user = authenticate_user("z99z999", "pw123456")
         self.assertIsNotNone(user)
         assert user is not None
         self.assertEqual(user["role"], "employee")
-        self.assertEqual(user["emp_no"], "B17C234")
+        self.assertEqual(user["emp_no"], "Z99Z999")
+        self.assertEqual(user["employee_name"], "테스트직원")
+        self.assertEqual(user["department_id"], 1)
+        self.assertEqual(user["cell_id"], 1)
 
 
 if __name__ == "__main__":

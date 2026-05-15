@@ -158,24 +158,70 @@ def register_user(
                 SELECT employee_id
                 FROM employees
                 WHERE UPPER(emp_no) = :emp_no
-                  AND employee_name = :employee_name
-                  AND department_id = :department_id
-                  AND cell_id = :cell_id
-                  AND LOWER(email) = :email
-                  AND is_active = TRUE
                 """
             ),
             {
                 "emp_no": normalized_emp_no,
-                "employee_name": normalized_name,
-                "department_id": department_id,
-                "cell_id": cell_id,
-                "email": normalized_email,
             },
         ).scalar_one_or_none()
 
         if employee is None:
-            return False, "입력한 직번/이름/부서/셀/이메일이 직원 정보와 일치하지 않습니다."
+            employee = connection.execute(
+                text("SELECT COALESCE(MAX(employee_id), 0) + 1 FROM employees")
+            ).scalar_one()
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO employees (
+                        employee_id,
+                        emp_no,
+                        employee_name,
+                        department_id,
+                        cell_id,
+                        email,
+                        is_active
+                    )
+                    VALUES (
+                        :employee_id,
+                        :emp_no,
+                        :employee_name,
+                        :department_id,
+                        :cell_id,
+                        :email,
+                        TRUE
+                    )
+                    """
+                ),
+                {
+                    "employee_id": employee,
+                    "emp_no": normalized_emp_no,
+                    "employee_name": normalized_name,
+                    "department_id": department_id,
+                    "cell_id": cell_id,
+                    "email": normalized_email,
+                },
+            )
+        else:
+            connection.execute(
+                text(
+                    """
+                    UPDATE employees
+                    SET employee_name = :employee_name,
+                        department_id = :department_id,
+                        cell_id = :cell_id,
+                        email = :email,
+                        is_active = TRUE
+                    WHERE employee_id = :employee_id
+                    """
+                ),
+                {
+                    "employee_id": employee,
+                    "employee_name": normalized_name,
+                    "department_id": department_id,
+                    "cell_id": cell_id,
+                    "email": normalized_email,
+                },
+            )
 
         existing_account = connection.execute(
             text("SELECT 1 FROM app_users WHERE employee_id = :employee_id"),
@@ -213,6 +259,8 @@ def authenticate_user(username: str, password: str) -> dict[str, object] | None:
             e.emp_no,
             e.employee_name,
             e.email,
+            e.department_id,
+            e.cell_id,
             d.department_name,
             c.cell_name
         FROM app_users u
@@ -239,6 +287,8 @@ def authenticate_user(username: str, password: str) -> dict[str, object] | None:
         "emp_no": row["emp_no"],
         "employee_name": row["employee_name"],
         "email": row["email"],
+        "department_id": row["department_id"],
+        "cell_id": row["cell_id"],
         "department_name": row["department_name"],
         "cell_name": row["cell_name"],
         "display_name": display_name,

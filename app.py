@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from datetime import date
 from pathlib import Path
 
@@ -166,6 +167,32 @@ CUSTOM_CSS = """
         flex-direction: column;
         gap: 0.1rem;
     }
+    .login-brand-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+        margin: 0.15rem 0 1.1rem 0;
+    }
+    .login-brand-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+    .login-brand-title {
+        color: var(--ink-strong);
+        font-size: 1.62rem;
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+    }
+    .auth-helper {
+        color: var(--success);
+        font-size: 0.98rem;
+        font-weight: 700;
+        line-height: 1.45;
+        margin: 0.35rem 0 0.2rem 0;
+    }
     .brand-name {
         font-size: 1.55rem;
         line-height: 1.05;
@@ -193,7 +220,7 @@ CUSTOM_CSS = """
         color: var(--ink-soft);
         text-transform: uppercase;
         letter-spacing: 0.10em;
-        font-size: 0.73rem;
+        font-size: 0.88rem;
         font-weight: 700;
         margin-bottom: 0.45rem;
     }
@@ -277,6 +304,10 @@ def safe_date(value: object) -> date:
 
 def inject_theme() -> None:
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+
+def get_image_base64(path: Path) -> str:
+    return base64.b64encode(path.read_bytes()).decode("ascii")
 
 
 def render_page_intro(title: str, description: str, kicker: str = "광주은행 주간업무보고") -> None:
@@ -385,9 +416,17 @@ def render_service_badges(values: list[str]) -> None:
 
 def render_login_page() -> None:
     if SIGNATURE_IMAGE.exists():
-        logo_left, logo_center, logo_right = st.columns([1.2, 2.8, 1.2])
-        with logo_center:
-            st.image(str(SIGNATURE_IMAGE), width=280)
+        st.markdown(
+            f"""
+            <div class="login-brand-row">
+                <img src="data:image/png;base64,{get_image_base64(SIGNATURE_IMAGE)}" style="width: 168px; height: auto;" />
+                <div class="login-brand-copy">
+                    <div class="login-brand-title">주간업무보고 시스템</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
         render_brand_hero(show_copy=False)
     left, right = st.columns([1, 1], gap="medium")
@@ -398,7 +437,7 @@ def render_login_page() -> None:
             username = st.text_input("아이디", placeholder="예: a24b901")
             password = st.text_input("비밀번호", type="password")
             submitted = st.form_submit_button("로그인", type="primary")
-        st.caption("관리자 데모 계정: `admin / admin123!`")
+        st.markdown('<div class="auth-helper">관리자 데모 계정: <code>admin / admin123!</code></div>', unsafe_allow_html=True)
         render_section_close()
 
         if submitted:
@@ -436,14 +475,6 @@ def render_login_page() -> None:
             submitted = st.form_submit_button("회원가입", type="primary")
         render_section_close()
 
-        render_service_badges(
-            [
-                "직번 7자리 검증",
-                "숫자-only 허용",
-                "이메일 대조 확인",
-                "직원 마스터 일치 검증",
-            ]
-        )
         st.caption("로그인 아이디는 회원가입 후 직번 소문자 형태로 사용됩니다. 예: `A24B901 -> a24b901`")
 
         if submitted:
@@ -635,6 +666,79 @@ def render_report_query_page() -> None:
                 label="Word 다운로드",
                 data=word_bytes,
                 file_name=build_download_filename("주간업무보고", "docx", department_name, cell_name, selected_period),
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+
+
+def render_cell_report_query_page(user: dict[str, object]) -> None:
+    render_page_intro(
+        "내 셀 보고서를 조회하고 내려받으세요",
+        "로그인한 직원의 소속 셀 기준으로 기간별 보고서를 조회하고 Excel과 Word로 다운로드할 수 있습니다.",
+        kicker="Cell Reports",
+    )
+
+    department_id = user.get("department_id")
+    cell_id = user.get("cell_id")
+    department_name = user.get("department_name")
+    cell_name = user.get("cell_name")
+
+    if not department_id or not cell_id:
+        st.warning("현재 계정에 연결된 부서 또는 셀 정보가 없습니다.")
+        return
+
+    period_options = build_period_options()
+    period_labels = [format_week_label(start, end) for start, end in period_options]
+
+    render_section_open("조회 조건")
+    selected_label = st.selectbox("보고 기간", period_labels, index=0)
+    selected_period = period_options[period_labels.index(selected_label)]
+    info_cols = st.columns(2)
+    info_cols[0].text_input("부서", value=str(department_name or ""), disabled=True)
+    info_cols[1].text_input("셀", value=str(cell_name or ""), disabled=True)
+    render_period_info(selected_period)
+    render_section_close()
+
+    if st.button("셀 보고서 조회", type="primary"):
+        result = get_reports_by_cell(
+            week_start=selected_period[0],
+            week_end=selected_period[1],
+            department_id=int(department_id),
+            cell_id=int(cell_id),
+        )
+
+        if result.empty:
+            st.warning("조회된 셀 보고서가 없습니다.")
+            return
+
+        metric_cols = st.columns(4)
+        metric_cols[0].metric("조회 행 수", f"{len(result)}건")
+        metric_cols[1].metric("부서", str(department_name or "-"))
+        metric_cols[2].metric("셀", str(cell_name or "-"))
+        metric_cols[3].metric("다운로드 형식", "Excel + Word")
+        st.dataframe(result, use_container_width=True)
+
+        excel_bytes = dataframe_to_excel_bytes(result, sheet_name="cell_reports")
+        word_bytes = build_report_docx(
+            dataframe=result,
+            week_start=selected_period[0],
+            week_end=selected_period[1],
+            department_name=str(department_name or ""),
+            cell_name=str(cell_name or ""),
+        )
+
+        dl_cols = st.columns(2)
+        with dl_cols[0]:
+            st.download_button(
+                label="Excel 다운로드",
+                data=excel_bytes,
+                file_name=build_download_filename("주간업무보고", "xlsx", str(department_name or ""), str(cell_name or ""), selected_period),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        with dl_cols[1]:
+            st.download_button(
+                label="Word 다운로드",
+                data=word_bytes,
+                file_name=build_download_filename("주간업무보고", "docx", str(department_name or ""), str(cell_name or ""), selected_period),
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
 
@@ -853,7 +957,7 @@ def render_authenticated_app() -> None:
     if is_admin(user):
         menu_items = ["주간업무보고 작성", "전체/셀 보고서 조회", "차트 분석", "미작성자 확인", "기초정보 조회"]
     else:
-        menu_items = ["주간업무보고 작성", "내 보고서 조회"]
+        menu_items = ["주간업무보고 작성", "내 보고서 조회", "내 셀 보고서 조회"]
 
     menu = st.sidebar.radio("메뉴", menu_items)
 
@@ -867,6 +971,8 @@ def render_authenticated_app() -> None:
         render_not_submitted_page()
     elif menu == "기초정보 조회":
         render_employee_page()
+    elif menu == "내 셀 보고서 조회":
+        render_cell_report_query_page(user)
     else:
         render_my_report_page(user)
 
