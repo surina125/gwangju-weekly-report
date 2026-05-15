@@ -4,6 +4,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -22,6 +23,7 @@ REQUIRED_DB_ENV_VARS = [
     "DB_USER",
     "DB_PASSWORD",
 ]
+DATABASE_URL_ENV_VARS = ["DATABASE_URL", "SUPABASE_DB_URL"]
 
 
 class MissingEnvironmentError(RuntimeError):
@@ -35,13 +37,27 @@ def _load_streamlit_secrets_into_env() -> None:
     except Exception:
         return
 
-    for key in REQUIRED_DB_ENV_VARS + ["DB_SSLMODE"]:
-        value = secrets.get(key)
-        if value is not None and not os.getenv(key):
-            os.environ[key] = str(value)
+    try:
+        for key in REQUIRED_DB_ENV_VARS + DATABASE_URL_ENV_VARS + ["DB_SSLMODE"]:
+            value = secrets.get(key)
+            if value is not None and not os.getenv(key):
+                os.environ[key] = str(value)
+    except Exception:
+        return
+
+
+def get_database_url_from_env() -> str | None:
+    _load_streamlit_secrets_into_env()
+    for key in DATABASE_URL_ENV_VARS:
+        value = os.getenv(key)
+        if value:
+            return value.strip()
+    return None
 
 
 def get_missing_env_vars() -> list[str]:
+    if get_database_url_from_env():
+        return []
     _load_streamlit_secrets_into_env()
     return [key for key in REQUIRED_DB_ENV_VARS if not os.getenv(key)]
 
@@ -53,8 +69,28 @@ def validate_db_env() -> None:
         raise MissingEnvironmentError(f"Missing required environment variables: {joined}")
 
 
+def normalize_database_url(raw_url: str) -> str:
+    if raw_url.startswith("postgres://"):
+        raw_url = raw_url.replace("postgres://", "postgresql+psycopg://", 1)
+    elif raw_url.startswith("postgresql://"):
+        raw_url = raw_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+    parsed = urlparse(raw_url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    if "sslmode" not in query:
+        hostname = (parsed.hostname or "").strip().lower()
+        query["sslmode"] = "disable" if hostname in {"localhost", "127.0.0.1", "::1"} else "require"
+        parsed = parsed._replace(query=urlencode(query))
+
+    return urlunparse(parsed)
+
+
 def build_database_url() -> str:
     validate_db_env()
+
+    database_url = get_database_url_from_env()
+    if database_url:
+        return normalize_database_url(database_url)
 
     host = os.environ["DB_HOST"]
     port = os.environ["DB_PORT"]
