@@ -666,11 +666,10 @@ def render_report_query_page() -> None:
         st.warning("조회된 주간업무보고가 없습니다.")
         return
 
-    metric_cols = st.columns(4)
+    metric_cols = st.columns(3)
     metric_cols[0].metric("조회 행 수", f"{len(result)}건")
     metric_cols[1].metric("부서", department_name or "전체")
     metric_cols[2].metric("셀", cell_name or "전체")
-    metric_cols[3].metric("다운로드 형식", "Excel + Word")
     st.dataframe(result, use_container_width=True)
 
     excel_bytes = dataframe_to_excel_bytes(result, sheet_name="weekly_reports")
@@ -759,11 +758,10 @@ def render_cell_report_query_page(user: dict[str, object]) -> None:
         st.warning("조회된 셀 보고서가 없습니다.")
         return
 
-    metric_cols = st.columns(4)
+    metric_cols = st.columns(3)
     metric_cols[0].metric("조회 행 수", f"{len(result)}건")
     metric_cols[1].metric("부서", str(department_name or "-"))
     metric_cols[2].metric("셀", str(cell_name or "-"))
-    metric_cols[3].metric("다운로드 형식", "Excel + Word")
     st.dataframe(result, use_container_width=True)
 
     excel_bytes = dataframe_to_excel_bytes(result, sheet_name="cell_reports")
