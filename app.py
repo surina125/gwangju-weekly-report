@@ -955,7 +955,7 @@ def render_authenticated_app() -> None:
         st.rerun()
 
     if is_admin(user):
-        menu_items = ["주간업무보고 작성", "전체/셀 보고서 조회", "차트 분석", "미작성자 확인", "기초정보 조회"]
+        menu_items = ["전체/셀 보고서 조회", "차트 분석", "미작성자 확인", "기초정보 조회"]
     else:
         menu_items = ["주간업무보고 작성", "내 보고서 조회", "내 셀 보고서 조회"]
 
