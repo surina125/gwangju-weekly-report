@@ -1,0 +1,8 @@
+.env
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
+artifacts/
+.pytest_cache/
+.DS_Store
+Thumbs.db
